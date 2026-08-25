@@ -131,78 +131,50 @@ jobs:
           CF_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
         run: echo "curseforge.api_key=${CF_API_KEY}" >> local.properties
 
-      - name: Build Debug, Beta and Unsigned Release APKs
-        if: env.HAS_GOOGLE_SERVICES == 'true'
-        run: ./gradlew assembleDebug assembleBeta assembleRelease
+      - name: Build Debug and Release AARs
+        run: ./gradlew :minecraft:assembleDebug :minecraft:assembleRelease
 
-      - name: Compile Debug Without Firebase Secrets
-        if: env.HAS_GOOGLE_SERVICES == 'false'
-        run: ./gradlew :app:compileDebugKotlin :app:compileDebugJavaWithJavac
-
-      - name: Upload Debug APK
-        if: env.HAS_GOOGLE_SERVICES == 'true'
+      - name: Upload Debug AAR
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: LeviLauncher-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: LeviLauncher-debug-aar
+          path: minecraft/build/outputs/aar/*-debug.aar
 
-      - name: Upload Unsigned Release APK
-        if: env.HAS_GOOGLE_SERVICES == 'true'
+      - name: Upload Release AAR
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: LeviLauncher-release-unsigned-apk
-          path: app/build/outputs/apk/release/*-unsigned.apk
+          name: LeviLauncher-release-aar
+          path: minecraft/build/outputs/aar/*-release.aar
 
-      - name: Upload Beta APK
-        if: env.HAS_GOOGLE_SERVICES == 'true'
-        uses: actions/upload-artifact@v4.6.2
-        with:
-          name: LeviLauncher-beta-apk
-          path: app/build/outputs/apk/beta/*.apk
-
-      - name: Sign Release APK
-        if: env.HAS_GOOGLE_SERVICES == 'true' && startsWith(github.ref, 'refs/tags/')
-        uses: kevin-david/zipalign-sign-android-release@v2
-        id: sign_app
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY_STORE }}
-          alias: ${{ secrets.SIGNING_KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
-          zipAlign: true
-        env:
-          BUILD_TOOLS_VERSION: "35.0.0"
-
-      - name: Rename APK with tag
-        if: env.HAS_GOOGLE_SERVICES == 'true' && startsWith(github.ref, 'refs/tags/')
+      - name: Rename AAR with tag
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           TAG=${GITHUB_REF_NAME}
-          SIGNED_APK="${{ steps.sign_app.outputs.signedReleaseFile }}"
-          APK_DST="LeviLauncher-${TAG}-release.apk"
-          cp "$SIGNED_APK" "$APK_DST"
-          echo "Signed APK renamed to $APK_DST"
+          AAR_SRC=$(ls minecraft/build/outputs/aar/*-release.aar | head -n1)
+          AAR_DST="LeviLauncher-${TAG}-release.aar"
+          cp "$AAR_SRC" "$AAR_DST"
+          echo "Release AAR renamed to $AAR_DST"
 
-      - name: Upload Signed APK Artifact
-        if: env.HAS_GOOGLE_SERVICES == 'true' && startsWith(github.ref, 'refs/tags/')
+      - name: Upload Tagged Release AAR Artifact
+        if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: LeviLauncher-${{ github.ref_name }}-release.apk
-          path: LeviLauncher-${{ github.ref_name }}-release.apk
+          name: LeviLauncher-${{ github.ref_name }}-release.aar
+          path: LeviLauncher-${{ github.ref_name }}-release.aar
 
-      - name: Release APK to GitHub Releases
-        if: env.HAS_GOOGLE_SERVICES == 'true' && startsWith(github.ref, 'refs/tags/')
+      - name: Release AAR to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: LeviLauncher-${{ github.ref_name }}-release.apk
+          files: LeviLauncher-${{ github.ref_name }}-release.aar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notify Discord
-        if: env.HAS_GOOGLE_SERVICES == 'true' && startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-          APK_URL: "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/LeviLauncher-${{ github.ref_name }}-release.apk"
+          AAR_URL: "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/LeviLauncher-${{ github.ref_name }}-release.aar"
           TAG_NAME: ${{ github.ref_name }}
         run: |
           EMBED_TITLE="🚀 LeviLauncher Update!"
@@ -225,7 +197,7 @@ jobs:
                 },
                 {
                   \"name\": \"🔗 Download\",
-                  \"value\": \"[**Click here to download APK**]($APK_URL)\",
+                  \"value\": \"[**Click here to download AAR**]($AAR_URL)\",
                   \"inline\": true
                 }
               ]
